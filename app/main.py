@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.errors import registrar_handlers
-from app.routers import categoria, fornecedor
+from app.routers import categoria, fornecedor, produto
 
 app = FastAPI(
     title="API de Estoque",
@@ -11,6 +11,7 @@ registrar_handlers(app)
 
 app.include_router(categoria.router)
 app.include_router(fornecedor.router)
+app.include_router(produto.router)
 
 
 @app.get("/health", tags=["Saúde"])
