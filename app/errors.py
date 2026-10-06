@@ -16,6 +16,50 @@ from app.exceptions import (
 
 logger = logging.getLogger("app")
 
+# O Pydantic e o Starlette geram suas mensagens em inglês. Traduzimos os
+# casos que esta API produz para que o cliente receba tudo em um idioma só.
+# Um tipo fora da lista mantém a mensagem original em vez de sumir.
+MENSAGENS_VALIDACAO = {
+    "missing": "Campo obrigatório.",
+    "string_type": "Deve ser um texto.",
+    "string_too_short": "Deve ter pelo menos {min_length} caractere(s).",
+    "string_too_long": "Deve ter no máximo {max_length} caracteres.",
+    "string_pattern_mismatch": "Formato inválido.",
+    "int_type": "Deve ser um número inteiro.",
+    "int_parsing": "Deve ser um número inteiro.",
+    "int_from_float": "Deve ser um número inteiro, sem casas decimais.",
+    "decimal_type": "Deve ser um número decimal.",
+    "decimal_parsing": "Deve ser um número decimal.",
+    "decimal_max_digits": "Deve ter no máximo {max_digits} dígitos.",
+    "decimal_max_places": "Deve ter no máximo {decimal_places} casas decimais.",
+    "greater_than": "Deve ser maior que {gt}.",
+    "greater_than_equal": "Deve ser maior ou igual a {ge}.",
+    "enum": "Valor inválido. Opções aceitas: {expected}.",
+    "date_parsing": "Data inválida. Use o formato AAAA-MM-DD.",
+    "date_from_datetime_parsing": "Data inválida. Use o formato AAAA-MM-DD.",
+    "json_invalid": "O corpo da requisição não é um JSON válido.",
+    "model_attributes_type": "O corpo da requisição deve ser um objeto JSON.",
+}
+
+MENSAGENS_HTTP = {
+    404: "Rota não encontrada.",
+    405: "Método não permitido para esta rota.",
+}
+
+
+def traduzir_erro(erro: dict) -> dict:
+    modelo = MENSAGENS_VALIDACAO.get(erro["type"])
+    mensagem = modelo.format(**erro.get("ctx", {})) if modelo else erro["msg"]
+    # O ctx do enum vem como "'entrada' or 'saida'".
+    mensagem = mensagem.replace("' or '", "' ou '")
+    # loc vem como ("body", "nome"); o primeiro item só diz onde estava o dado.
+    # No JSON malformado o resto é a posição do erro no texto, não um campo.
+    campo = ".".join(str(p) for p in erro["loc"][1:])
+    if erro["type"] == "json_invalid" or not campo:
+        campo = "corpo"
+    return {"campo": campo, "erro": mensagem}
+
+
 def resposta_erro(
     status: int, mensagem: str, detalhes: list | None = None
 ) -> JSONResponse:
@@ -48,10 +92,7 @@ def registrar_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def dados_invalidos(request: Request, exc: RequestValidationError):
-        detalhes = [
-            {"campo": ".".join(str(p) for p in erro["loc"][1:]), "erro": erro["msg"]}
-            for erro in exc.errors()
-        ]
+        detalhes = [traduzir_erro(erro) for erro in exc.errors()]
         return resposta_erro(400, "Dados inválidos.", detalhes)
 
     @app.exception_handler(IntegrityError)
@@ -62,7 +103,8 @@ def registrar_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def erro_http(request: Request, exc: StarletteHTTPException):
-        return resposta_erro(exc.status_code, str(exc.detail))
+        mensagem = MENSAGENS_HTTP.get(exc.status_code, str(exc.detail))
+        return resposta_erro(exc.status_code, mensagem)
 
     @app.exception_handler(Exception)
     async def erro_interno(request: Request, exc: Exception):
