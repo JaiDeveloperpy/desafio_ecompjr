@@ -6,10 +6,15 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.exceptions import Conflito, NaoEncontrado, RegraDeNegocio
+from app.exceptions import (
+    Conflito,
+    NaoAutenticado,
+    NaoEncontrado,
+    RegraDeNegocio,
+    SemPermissao,
+)
 
 logger = logging.getLogger("app")
-
 
 def resposta_erro(
     status: int, mensagem: str, detalhes: list | None = None
@@ -32,6 +37,14 @@ def registrar_handlers(app: FastAPI) -> None:
     @app.exception_handler(RegraDeNegocio)
     async def regra_de_negocio(request: Request, exc: RegraDeNegocio):
         return resposta_erro(400, str(exc))
+
+    @app.exception_handler(NaoAutenticado)
+    async def nao_autenticado(request: Request, exc: NaoAutenticado):
+        return resposta_erro(401, str(exc))
+
+    @app.exception_handler(SemPermissao)
+    async def sem_permissao(request: Request, exc: SemPermissao):
+        return resposta_erro(403, str(exc))
 
     @app.exception_handler(RequestValidationError)
     async def dados_invalidos(request: Request, exc: RequestValidationError):

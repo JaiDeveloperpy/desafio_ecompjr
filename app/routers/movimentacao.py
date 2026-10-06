@@ -6,12 +6,17 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import TipoMovimentacao
 from app.schemas.erro import respostas_erro
+from app.security import usuario_atual
 from app.schemas.movimentacao import MovimentacaoCreate, MovimentacaoResponse
 from app.services import movimentacao as service
 
 # Só GET e POST: movimentação é histórico de auditoria, então não há rota de
 # edição nem de exclusão (PUT/PATCH/DELETE respondem 405).
-router = APIRouter(prefix="/movimentacoes", tags=["Movimentações"])
+router = APIRouter(
+    prefix="/movimentacoes", tags=["Movimentações"],
+    dependencies=[Depends(usuario_atual)],
+    responses=respostas_erro(401),
+)
 
 
 @router.get(

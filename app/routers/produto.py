@@ -3,10 +3,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas.erro import respostas_erro
+from app.security import exigir_admin, usuario_atual
 from app.schemas.produto import ProdutoCreate, ProdutoResponse, ProdutoUpdate
 from app.services import produto as service
 
-router = APIRouter(prefix="/produtos", tags=["Produtos"])
+router = APIRouter(
+    prefix="/produtos", tags=["Produtos"],
+    dependencies=[Depends(usuario_atual)],
+    responses=respostas_erro(401),
+)
 
 
 @router.get("", response_model=list[ProdutoResponse], summary="Lista os produtos com filtros opcionais")
@@ -45,7 +50,8 @@ def buscar(produto_id: int, db: Session = Depends(get_db)):
     response_model=ProdutoResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Cria um produto (estoque inicial 0; use movimentações para dar entrada)",
-    responses=respostas_erro(400, 404, 409),
+    responses=respostas_erro(400, 403, 404, 409),
+    dependencies=[Depends(exigir_admin)],
 )
 def criar(dados: ProdutoCreate, db: Session = Depends(get_db)):
     return service.criar(db, dados)
@@ -55,7 +61,8 @@ def criar(dados: ProdutoCreate, db: Session = Depends(get_db)):
     "/{produto_id}",
     response_model=ProdutoResponse,
     summary="Atualiza parcialmente um produto (o estoque só muda por movimentação)",
-    responses=respostas_erro(400, 404, 409),
+    responses=respostas_erro(400, 403, 404, 409),
+    dependencies=[Depends(exigir_admin)],
 )
 def atualizar(produto_id: int, dados: ProdutoUpdate, db: Session = Depends(get_db)):
     return service.atualizar(db, produto_id, dados)
@@ -65,7 +72,8 @@ def atualizar(produto_id: int, dados: ProdutoUpdate, db: Session = Depends(get_d
     "/{produto_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Exclui um produto sem movimentações registradas",
-    responses=respostas_erro(404, 409),
+    responses=respostas_erro(403, 404, 409),
+    dependencies=[Depends(exigir_admin)],
 )
 def excluir(produto_id: int, db: Session = Depends(get_db)):
     service.excluir(db, produto_id)
